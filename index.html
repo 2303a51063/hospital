@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Hospital Management System - Single File</title>
+  <link rel="stylesheet" href="styles.css">
+
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div>
+        <div style="font-weight:700;font-size:20px">Hospital Management System</div>
+        <div class="small">Responsive single-file HTML demo • Data stored in your browser</div>
+      </div>
+      <div class="search">
+        <input id="globalSearch" placeholder="Search patients, doctors or appointments" />
+        <button class="btn" id="newPatientBtn">+ Patient</button>
+      </div>
+    </div>
+
+    <div class="layout">
+      <aside class="sidebar card">
+        <div class="brand">HospitalMS</div>
+        <div class="nav" id="nav">
+          <button data-view="dashboard" class="active">Dashboard</button>
+          <button data-view="patients">Patients</button>
+          <button data-view="appointments">Appointments</button>
+          <button data-view="doctors">Doctors</button>
+          <button data-view="billing">Billing</button>
+          <button data-view="pharmacy">Pharmacy</button>
+          <button data-view="reports">Reports</button>
+        </div>
+        <div style="margin-top:12px" class="small">v1.0 • Offline demo</div>
+      </aside>
+
+      <main>
+        <div id="content"></div>
+      </main>
+    </div>
+
+    <footer>Built with plain HTML/CSS/JS • Data saved to localStorage</footer>
+  </div>
+
+  <!-- Modal container -->
+  <div id="modals"></div>
+
+  <!-- Chart.js from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    // --- Simple single-file Hospital Management Application ---
+    const STORE_KEY = 'hms_html_v1';
+
+    const defaultState = {
+      patients: [
+        { id: 'P001', name: 'Asha Kumar', age: 34, gender: 'F', phone: '+91-9876543210', blood: 'A+', notes: 'Diabetic' },
+        { id: 'P002', name: 'Ravi Patel', age: 46, gender: 'M', phone: '+91-9123456780', blood: 'B+', notes: 'Hypertension' }
+      ],
+      doctors: [
+        { id: 'D001', name: 'Dr. Sanjay Mehta', specialty: 'Cardiology', phone: '+91-9000000001' },
+        { id: 'D002', name: 'Dr. Anita Desai', specialty: 'Gynecology', phone: '+91-9000000002' }
+      ],
+      appointments: [
+        { id: 'A001', patientId: 'P001', doctorId: 'D001', date: '2025-09-20', time: '10:00', status: 'Scheduled' }
+      ],
+      bills: [],
+      pharmacy: []
+    };
+
+    let state = loadState();
+
+    const content = document.getElementById('content');
+    const modals = document.getElementById('modals');
+    const nav = document.getElementById('nav');
+    const globalSearch = document.getElementById('globalSearch');
+    const newPatientBtn = document.getElementById('newPatientBtn');
+
+    function loadState(){
+      try{
+        const raw = localStorage.getItem(STORE_KEY);
+        return raw ? JSON.parse(raw) : structuredClone(defaultState);
+      }catch(e){return structuredClone(defaultState)}
+    }
+    function saveState(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+
+    function setView(view){
+      // update nav active
+      [...nav.querySelectorAll('button')].forEach(b=>b.classList.toggle('active', b.dataset.view===view));
+      // render
+      if(view==='dashboard') renderDashboard();
+      if(view==='patients') renderPatients();
+      if(view==='appointments') renderAppointments();
+      if(view==='doctors') renderDoctors();
+      if(view==='billing') renderBilling();
+      if(view==='pharmacy') renderPharmacy();
+      if(view==='reports') renderReports();
+    }
+
+    // --- Renderers ---
+    function renderDashboard(){
+      content.innerHTML = `
+        <div class="grid-3">
+          <div class="card"> <div class="small">Patients</div><div style="font-size:20px;font-weight:700">${state.patients.length}</div></div>
+          <div class="card"> <div class="small">Doctors</div><div style="font-size:20px;font-weight:700">${state.doctors.length}</div></div>
+          <div class="card"> <div class="small">Appointments</div><div style="font-size:20px;font-weight:700">${state.appointments.length}</div></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-top:12px">
+          <div class="card">
+            <h3 style="margin-top:0">Upcoming Appointments</h3>
+            <div id="upcomingList"></div>
+          </div>
+          <div class="card">
+            <h3 style="margin-top:0">Quick Actions</h3>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <button class="btn" id="gotoPatients">Manage Patients</button>
+              <button class="btn-ghost" id="gotoAppointments">Schedule Appointment</button>
+              <button class="btn-ghost" id="printBtn">Print</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h3 style="margin-top:0">Appointments Overview</h3>
+          <canvas id="chart"></canvas>
+        </div>
+      `;
+
+      const upcomingList = document.getElementById('upcomingList');
+      if(state.appointments.length===0) upcomingList.innerHTML = '<div class="small">No appointments</div>';
+      else{
+        upcomingList.innerHTML = state.appointments.slice(0,6).map(a=>{
+          const p = state.patients.find(x=>x.id===a.patientId) || {name:a.patientId};
+          const d = state.doctors.find(x=>x.id===a.doctorId) || {name:a.doctorId};
+          return `<div class="list-item"><div><div style="font-weight:700">${p.name}</div><div class="small">${a.date} ${a.time} • ${d.name}</div></div><div class="small">${a.status}</div></div>`
+        }).join('');
+      }
+
+      document.getElementById('gotoPatients').onclick = ()=>setView('patients');
+      document.getElementById('gotoAppointments').onclick = ()=>setView('appointments');
+      document.getElementById('printBtn').onclick = ()=>window.print();
+
+      // chart
+      const counts = {};
+      state.appointments.forEach(a=>counts[a.date] = (counts[a.date]||0)+1);
+      const labels = Object.keys(counts).slice(-12);
+      const dataPoints = labels.map(l=>counts[l]);
+      const ctx = document.getElementById('chart').getContext('2d');
+      if(window._chart) window._chart.destroy();
+      window._chart = new Chart(ctx, {type:'bar',data:{labels, datasets:[{label:'Appointments', data:dataPoints, backgroundColor:'rgba(79,70,229,0.7)'}]}});
+    }
+
+    function renderPatients(){
+      content.innerHTML = `
+        <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+          <div><h3 style="margin:0">Patients</h3><div class="small">Manage patient records</div></div>
+          <div><button class="btn" id="addPatient">+ New Patient</button></div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <table>
+            <thead><tr><th>ID</th><th>Name</th><th>Age</th><th>Phone</th><th>Blood</th><th></th></tr></thead>
+            <tbody id="patientsTable"></tbody>
+          </table>
+        </div>
+      `;
+
+      const tbody = document.getElementById('patientsTable');
+      tbody.innerHTML = state.patients.map(p=>`<tr>
+        <td>${p.id}</td>
+        <td>${p.name}</td>
+        <td>${p.age}</td>
+        <td>${p.phone}</td>
+        <td>${p.blood}</td>
+        <td style="text-align:right"><button class="btn-ghost" data-id="${p.id}" data-action="edit">Edit</button> <button class="btn-ghost" data-id="${p.id}" data-action="delete">Delete</button></td>
+      </tr>`).join('') || '<tr><td colspan="6" class="small">No patients</td></tr>';
+
+      document.getElementById('addPatient').onclick = ()=>openPatientModal();
+      tbody.querySelectorAll('button').forEach(b=>b.onclick = (e)=>{
+        const id = b.dataset.id; const action = b.dataset.action;
+        if(action==='edit') openPatientModal(state.patients.find(x=>x.id===id));
+        if(action==='delete'){ if(confirm('Delete patient?')){ state.patients = state.patients.filter(x=>x.id!==id); saveState(); renderPatients(); }}
+      });
+    }
+
+    function renderAppointments(){
+      content.innerHTML = `
+        <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+          <div><h3 style="margin:0">Appointments</h3><div class="small">Schedule and manage appointments</div></div>
+          <div><button class="btn" id="addAppt">+ Schedule</button></div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <form id="apptForm" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <select id="apptPatient"><option value="">Select patient</option></select>
+            <select id="apptDoctor"><option value="">Select doctor</option></select>
+            <input type="date" id="apptDate" />
+            <input type="time" id="apptTime" />
+            <button class="btn" type="button" id="saveAppt">Save</button>
+          </form>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <table>
+            <thead><tr><th>Patient</th><th>Doctor</th><th>Date</th><th>Time</th><th>Status</th><th></th></tr></thead>
+            <tbody id="apptTable"></tbody>
+          </table>
+        </div>
+      `;
+
+      const apptPatient = document.getElementById('apptPatient');
+      const apptDoctor = document.getElementById('apptDoctor');
+      apptPatient.innerHTML += state.patients.map(p=>`<option value="${p.id}">${p.name} (${p.id})</option>`).join('');
+      apptDoctor.innerHTML += state.doctors.map(d=>`<option value="${d.id}">${d.name} - ${d.specialty}</option>`).join('');
+
+      const apptTable = document.getElementById('apptTable');
+      apptTable.innerHTML = state.appointments.map(a=>{
+        const p = state.patients.find(x=>x.id===a.patientId) || {name:a.patientId};
+        const d = state.doctors.find(x=>x.id===a.doctorId) || {name:a.doctorId};
+        return `<tr><td>${p.name}</td><td>${d.name}</td><td>${a.date}</td><td>${a.time}</td><td>${a.status}</td><td style="text-align:right"><button class="btn-ghost" data-id="${a.id}" data-action="complete">Complete</button> <button class="btn-ghost" data-id="${a.id}" data-action="bill">Bill</button></td></tr>`
+      }).join('') || '<tr><td colspan="6" class="small">No appointments</td></tr>';
+
+      document.getElementById('saveAppt').onclick = ()=>{
+        const patientId = apptPatient.value, doctorId = apptDoctor.value, date = document.getElementById('apptDate').value, time = document.getElementById('apptTime').value;
+        if(!patientId||!doctorId||!date||!time){alert('Please fill all fields');return}
+        const id = 'A'+(Date.now()%100000);
+        state.appointments.unshift({id,patientId,doctorId,date,time,status:'Scheduled'}); saveState(); renderAppointments();
+      }
+
+      apptTable.querySelectorAll('button').forEach(b=>b.onclick = ()=>{
+        const id = b.dataset.id; const action = b.dataset.action;
+        if(action==='complete'){ state.appointments = state.appointments.map(a=> a.id===id? {...a,status:'Completed'}:a); saveState(); renderAppointments(); }
+        if(action==='bill'){ const ap = state.appointments.find(a=>a.id===id); if(ap){ openBillModal(ap); } }
+      });
+    }
+
+    function renderDoctors(){
+      content.innerHTML = `
+        <div class="card" style="display:flex;justify-content:space-between;align-items:center">
+          <div><h3 style="margin:0">Doctors</h3><div class="small">List of doctors</div></div>
+          <div><button class="btn" id="addDoctor">+ Doctor</button></div>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <div id="doctorsList"></div>
+        </div>
+      `;
+      const doctorsList = document.getElementById('doctorsList');
+      doctorsList.innerHTML = state.doctors.map(d=>`<div class="list-item"><div><div style="font-weight:700">${d.name}</div><div class="small">${d.specialty} • ${d.phone}</div></div><div><button class="btn-ghost" data-id="${d.id}" data-action="del">Delete</button></div></div>`).join('') || '<div class="small">No doctors</div>';
+      document.getElementById('addDoctor').onclick = ()=>openDoctorModal();
+      doctorsList.querySelectorAll('button').forEach(b=>b.onclick = ()=>{ const id=b.dataset.id; if(confirm('Delete doctor?')){ state.doctors=state.doctors.filter(x=>x.id!==id); saveState(); renderDoctors(); } });
+    }
+
+    function renderBilling(){
+      content.innerHTML = `
+        <div class="card"><h3 style="margin:0">Billing</h3><div class="small">Create and view bills</div></div>
+        <div class="card" style="margin-top:12px">
+          <table><thead><tr><th>Bill ID</th><th>Patient</th><th>Amount</th><th>Date</th><th></th></tr></thead><tbody id="billsTable"></tbody></table>
+        </div>
+      `;
+      const billsTable = document.getElementById('billsTable');
+      billsTable.innerHTML = state.bills.map(b=>`<tr><td>${b.id}</td><td>${(state.patients.find(p=>p.id===b.patientId)||{name:b.patientId}).name}</td><td>₹${b.amount}</td><td>${b.date}</td><td style="text-align:right"><button class="btn-ghost" data-id="${b.id}" data-action="print">Print</button></td></tr>`).join('')||'<tr><td colspan="5" class="small">No bills</td></tr>';
+      billsTable.querySelectorAll('button').forEach(b=>b.onclick=()=>{ const id=b.dataset.id; const bill = state.bills.find(x=>x.id===id); if(b.dataset.action==='print'){ if(bill) alert('Printing bill '+bill.id); } });
+    }
+
+    function renderPharmacy(){
+      content.innerHTML = `
+        <div class="card"><h3 style="margin:0">Pharmacy</h3><div class="small">Manage medicines</div></div>
+        <div class="card" style="margin-top:12px"><div class="small">Feature placeholder — you can add medicine inventory, sales and prescriptions here.</div></div>
+      `;
+    }
+
+    function renderReports(){
+      content.innerHTML = `
+        <div class="card"><h3 style="margin:0">Reports</h3><div class="small">Simple export & stats</div></div>
+        <div class="card" style="margin-top:12px">
+          <button class="btn" id="exportBtn">Export JSON</button>
+          <button class="btn-ghost" id="resetBtn">Reset Demo Data</button>
+        </div>
+      `;
+      document.getElementById('exportBtn').onclick = ()=>{ const blob = new Blob([JSON.stringify(state,null,2)],{type:'application/json'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='hms-data.json'; a.click(); }
+      document.getElementById('resetBtn').onclick = ()=>{ if(confirm('Reset data to demo defaults?')){ state = structuredClone(defaultState); saveState(); setView('dashboard'); } }
+    }
+
+    // --- Modals ---
+    function openPatientModal(patient){
+      const isNew = !patient;
+      const id = patient?.id || 'P'+(Date.now()%100000);
+      modals.innerHTML = `<div class="modal-backdrop"><div class="modal">
+        <h3>${isNew? 'Add Patient':'Edit Patient'}</h3>
+        <form id="patientForm">
+          <div class="row"><input name="name" placeholder="Full name" value="${patient?.name||''}" required /></div>
+          <div class="row"><input name="age" placeholder="Age" value="${patient?.age||''}" /><input name="gender" placeholder="Gender" value="${patient?.gender||''}" /></div>
+          <div class="row"><input name="phone" placeholder="Phone" value="${patient?.phone||''}" /><input name="blood" placeholder="Blood group" value="${patient?.blood||''}" /></div>
+          <div class="row"><textarea name="notes" placeholder="Notes">${patient?.notes||''}</textarea></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" type="submit">Save</button><button class="btn-ghost" type="button" id="cancelPatient">Cancel</button></div>
+        </form>
+      </div></div>`;
+      document.getElementById('cancelPatient').onclick = closeModals;
+      document.getElementById('patientForm').onsubmit = (e)=>{
+        e.preventDefault(); const f = new FormData(e.target);
+        const p = { id, name: f.get('name'), age: f.get('age'), gender: f.get('gender'), phone: f.get('phone'), blood: f.get('blood'), notes: f.get('notes') };
+        if(isNew) state.patients.unshift(p); else state.patients = state.patients.map(x=> x.id===id? p:x);
+        saveState(); closeModals(); renderPatients();
+      }
+    }
+
+    function openDoctorModal(doctor){
+      const isNew = !doctor; const id = doctor?.id || 'D'+(Date.now()%100000);
+      modals.innerHTML = `<div class="modal-backdrop"><div class="modal">
+        <h3>${isNew? 'Add Doctor':'Edit Doctor'}</h3>
+        <form id="doctorForm">
+          <div class="row"><input name="name" placeholder="Name" value="${doctor?.name||''}" required /></div>
+          <div class="row"><input name="specialty" placeholder="Specialty" value="${doctor?.specialty||''}" /><input name="phone" placeholder="Phone" value="${doctor?.phone||''}" /></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><button class="btn" type="submit">Save</button><button class="btn-ghost" type="button" id="cancelDoctor">Cancel</button></div>
+        </form>
+      </div></div>`;
+      document.getElementById('cancelDoctor').onclick = closeModals;
+      document.getElementById('doctorForm').onsubmit = (e)=>{ e.preventDefault(); const f=new FormData(e.target); const d={id,name:f.get('name'),specialty:f.get('specialty'),phone:f.get('phone')}; if(isNew) state.doctors.unshift(d); else state.doctors=state.doctors.map(x=>x.id===id?d:x); saveState(); closeModals(); renderDoctors(); }
+    }
+
+    function openBillModal(appointment){
+      const id = 'B'+(Date.now()%100000); const patient = state.patients.find(p=>p.id===appointment.patientId);
+      modals.innerHTML = `<div class="modal-backdrop"><div class="modal">
+        <h3>Create Bill</h3>
+        <form id="billForm">
+          <div class="row"><input name="patient" value="${patient?.name||appointment.patientId}" disabled /></div>
+          <div class="row"><input name="amount" placeholder="Amount" required /></div>
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><button class="btn" type="submit">Create</button><button class="btn-ghost" type="button" id="cancelBill">Cancel</button></div>
+        </form>
+      </div></div>`;
+      document.getElementById('cancelBill').onclick = closeModals;
+      document.getElementById('billForm').onsubmit = (e)=>{ e.preventDefault(); const f=new FormData(e.target); const bill={id,patientId:appointment.patientId,amount:parseFloat(f.get('amount'))||0,date:new Date().toISOString().slice(0,10)}; state.bills.unshift(bill); saveState(); closeModals(); renderBilling(); }
+
+    }
+
+    function closeModals(){ modals.innerHTML=''; }
+
+    // --- global small interactions ---
+    nav.querySelectorAll('button').forEach(b=>b.onclick = ()=>setView(b.dataset.view));
+    newPatientBtn.onclick = ()=>setView('patients');
+    globalSearch.oninput = ()=>{
+      const q = globalSearch.value.trim().toLowerCase(); if(!q){ setView(currentView); return; }
+      // quick search across patients/doctors
+      const p = state.patients.find(x=> x.name.toLowerCase().includes(q) || x.id.toLowerCase()===q || x.phone.includes(q));
+      if(p){ openPatientModal(p); }
+      const d = state.doctors.find(x=> x.name.toLowerCase().includes(q) || x.specialty.toLowerCase().includes(q)); if(d){ alert('Found doctor: '+d.name); }
+    }
+
+    // Keep track of current view
+    let currentView = 'dashboard';
+    function setViewWrapper(v){ currentView = v; setView(v); }
+
+    // expose some modal helpers globally for simplicity
+    window.openPatientModal = openPatientModal;
+
+    // initialize
+    setView(currentView);
+    saveState();
+  </script>
+</body>
+</html>
